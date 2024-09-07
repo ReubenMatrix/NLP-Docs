@@ -76,8 +76,8 @@ export default function Home() {
         <div className="max-w-3xl mx-auto py-8 text-sm text-gray-500">
           <div className="flex items-center justify-between pb-5">
             <h2 className="font-medium flex-grow">My Documents</h2>
-            <p className="mr-10">Date Created</p>
-            <FolderIcon className="w-6 h-6 text-gray-400" />
+            <p className="mr-5">Date Created</p>
+            <FolderIcon className="w-6 h-6 mr-6 text-gray-400" />
           </div>
           {documents.map((doc) => (
             <div key={doc.fileName} className="flex justify-between items-center cursor-pointer p-3 mb-2 bg-white hover:bg-gray-100 rounded-md shadow-sm">

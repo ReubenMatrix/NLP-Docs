@@ -13,6 +13,8 @@ function Account() {
   const { signOut } = useClerk();
   const router = useRouter()
 
+  console.log(user)
+
   const handleLogout = () => {
     router.push('/')
     signOut();
@@ -31,7 +33,10 @@ function Account() {
               alt='User profile'
             />
           </PopoverTrigger>
-          <PopoverContent className='p-4'>
+          <PopoverContent className='p-4  bg-gray-500'>
+            <p className='mb-1 font-bold text-white'>Your Account</p>
+            <p className='mb-1 text-sm text-white'>{user.fullName}</p>
+            <p className='mb-2 text-sm text-white'>{user.primaryEmailAddress?.emailAddress}</p>
             <Button className="w-full" onClick={handleLogout}>Logout</Button>
           </PopoverContent>
         </Popover>

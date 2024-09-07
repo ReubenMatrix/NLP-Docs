@@ -2,7 +2,6 @@
 
 import Account from '@/components/Account';
 import TextEditor from '@/components/TextEditor';
-import { useUser } from '@clerk/nextjs';
 import { FilePlusIcon } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
@@ -11,8 +10,6 @@ function Page() {
     const router = useRouter();
     const { title } = useParams();
     const [id, setId] = useState(null);
-    const user = useUser()
-
 
     useEffect(() => {
         if (title) {
@@ -41,8 +38,6 @@ function Page() {
                 </div>
 
                 <Account/>
-
-
             </div>
 
             <TextEditor fileId={title} />
