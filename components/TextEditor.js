@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import 'draft-js/dist/Draft.css';
 import dynamic from 'next/dynamic';
-import { EditorState, convertFromRaw, convertToRaw, ContentState } from 'draft-js';
+import { EditorState, convertFromRaw, convertToRaw } from 'draft-js';
 import 'react-draft-wysiwyg/dist/react-draft-wysiwyg.css';
 import { db } from '@/firebase';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -15,15 +15,15 @@ const Editor = dynamic(
 
 function TextEditor({ fileId }) {
   const [editorState, setEditorState] = useState(() => EditorState.createEmpty());
-  const [suggestions, setSuggestions] = useState([]);
-  const [cursorPosition, setCursorPosition] = useState({ top: 0, left: 0 });
+  const [prediction, setPrediction] = useState('');
+  const [debounceTimeout, setDebounceTimeout] = useState(null);
   const editorRef = useRef(null);
   const { user } = useUser();
-
-  
-
+  const isMounted = useRef(true); 
 
   useEffect(() => {
+    isMounted.current = true; 
+
     const fetchContent = async () => {
       try {
         const userEmail = user.primaryEmailAddress?.emailAddress;
@@ -39,9 +39,9 @@ function TextEditor({ fileId }) {
         if (docSnap.exists()) {
           const rawContent = docSnap.data().content;
           const contentState = convertFromRaw(JSON.parse(rawContent));
-          setEditorState(EditorState.createWithContent(contentState));
+          if (isMounted.current) setEditorState(EditorState.createWithContent(contentState));
         } else {
-          setEditorState(EditorState.createEmpty()); 
+          if (isMounted.current) setEditorState(EditorState.createEmpty()); 
         }
       } catch (error) {
         console.error("Error fetching content from Firestore:", error);
@@ -51,12 +51,26 @@ function TextEditor({ fileId }) {
     if (fileId) {
       fetchContent();
     }
+
+    return () => {
+      isMounted.current = false; 
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout); 
+      }
+    };
   }, [fileId, user]);
 
   const handleEditorChange = (newEditorState) => {
     setEditorState(newEditorState);
     saveContentToFirestore(newEditorState);
-    fetchSuggestions(newEditorState);
+
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+    }
+    const newTimeout = setTimeout(() => {
+      fetchPrediction(newEditorState);
+    }, 500); 
+    setDebounceTimeout(newTimeout);
   };
 
   const saveContentToFirestore = async (editorState) => {
@@ -64,7 +78,6 @@ function TextEditor({ fileId }) {
       const contentState = editorState.getCurrentContent();
       const rawContent = JSON.stringify(convertToRaw(contentState));
       const userEmail = user.primaryEmailAddress?.emailAddress;
-
 
       if (!userEmail) {
         console.error("User email not found");
@@ -82,67 +95,41 @@ function TextEditor({ fileId }) {
     }
   };
 
-  const fetchSuggestions = async (editorState) => {
+
+  const fetchPrediction = async (editorState) => {
     try {
       const contentState = editorState.getCurrentContent();
-      const rawContent = JSON.stringify(convertToRaw(contentState));
-      const plainText = contentState.getPlainText();
-      const words = plainText.split(/\s+/);
-      const lastTenWords = words.slice(-10).join(' ');
+      const plainText = contentState.getPlainText(); 
 
-      const response = await axios.post('https://fe57-34-170-206-193.ngrok-free.app/predict', {
-        text: lastTenWords,
-        n_best: 5
-      });
+      if (plainText.length > 0) {
+        const response = await axios.post('https://126c-35-237-191-169.ngrok-free.app/predict', {
+          input_text: plainText 
+        });
 
-      setSuggestions(response.data.predictions);
-    } catch (error) {
-      console.error("Error fetching suggestions:", error);
-    }
-  };
-
-  const handleMouseUp = (event) => {
-    const selection = window.getSelection();
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    setCursorPosition({
-      top: rect.top + window.scrollY,
-      left: rect.left + window.scrollX
-    });
-  };
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (editor) {
-      editor.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      if (editor) {
-        editor.removeEventListener('mouseup', handleMouseUp);
+        if (isMounted.current) setPrediction(response.data.prediction); 
+      } else {
+        if (isMounted.current) setPrediction(''); 
       }
-    };
-  }, [editorRef]);
+    } catch (error) {
+      console.error("Error fetching prediction:", error);
+      if (isMounted.current) setPrediction(''); 
+    }
+  };
 
   return (
-    <div className="editor-container bg-[#F8F9FA] min-h-screen pb-16" ref={editorRef}>
+    <div className="editor-container bg-[#F8F9FA] min-h-screen pb-16 relative" ref={editorRef}>
       <Editor 
         editorState={editorState}
         onEditorStateChange={handleEditorChange}
         toolbarClassName='flex sticky top-0 z-50 !justify-center mx-auto'
         editorClassName="mt-6 p-10 bg-white shadow-lg max-w-6xl mx-auto mb-12 border"
       />
-      {suggestions.length > 0 && (
-        <div
-          className="suggestions bg-white shadow-lg p-2 border absolute"
-          style={{ top: cursorPosition.top + 20, left: cursorPosition.left }}
+      {prediction && (
+        <div 
+          className="prediction fixed bottom-4 right-4 bg-white shadow-lg p-3 border rounded-md z-50 cursor-pointer transition-all duration-200"
         >
-          <h4 className="font-bold mb-2">Suggestions:</h4>
-          <ul>
-            {suggestions.map((suggestion, index) => (
-              <li key={index} className="text-gray-800">{suggestion}</li>
-            ))}
-          </ul>
+          <span className="text-sm text-gray-600">Suggested Word: </span>
+          <span className="font-semibold">{prediction}</span>
         </div>
       )}
     </div>
@@ -150,5 +137,4 @@ function TextEditor({ fileId }) {
 }
 
 export default TextEditor;
-
 
